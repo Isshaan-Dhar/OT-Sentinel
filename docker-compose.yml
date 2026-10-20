@@ -1,0 +1,51 @@
+services:
+  plc:
+    build:
+      context: ./plc
+    command: python plc_sim.py
+    ports:
+      - "5020:502"
+    networks:
+      ot_network:
+        ipv4_address: 192.168.10.10
+
+  hmi_poller:
+    build:
+      context: ./plc
+    command: python hmi_poller.py
+    depends_on:
+      - plc
+    networks:
+      ot_network:
+        ipv4_address: 192.168.10.20
+
+  timescaledb:
+    image: timescale/timescaledb:latest-pg14
+    environment:
+      - POSTGRES_USER=otsentinel
+      - POSTGRES_PASSWORD=securepass
+      - POSTGRES_DB=ot_telemetry
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./db_init:/docker-entrypoint-initdb.d
+    networks:
+      - ot_network
+      
+  grafana:
+    image: grafana/grafana:latest
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    ports:
+      - "3000:3000"
+    depends_on:
+      - timescaledb
+    networks:
+      - ot_network
+
+networks:
+  ot_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 192.168.10.0/24
